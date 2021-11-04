@@ -14,9 +14,9 @@ MonoBehaviour:
   id: blankCard
   title: Blank Card
   author: Sean Obach
-  description: This would be my mod jam submission if I had time. I'll also be busy
-    for 2 weeks, doing some training for a job. If anyone wants to implement TP support,
-    go right ahead and let me know in the DM when you submit a PR.
+  description: "This would be my mod jam submission if I had time. I'll also be busy
+    for 2 weeks, doing some training for a job. \nIf anyone wants to implement TP
+    support, go right ahead and let me know in the DM when you submit a PR."
   version: 1.0
   outputFolder: build
   previewImage: {fileID: 2800000, guid: 06b51277ba40c4b408b1664811c0fc11, type: 3}
