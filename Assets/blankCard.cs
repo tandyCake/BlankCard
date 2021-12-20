@@ -110,8 +110,17 @@ public class blankCard : MonoBehaviour {
 			RaycastHit hit;
 			canvas.Raycast(ray, out hit, 100.0f);
 			Vector2 v = hit.textureCoord;
-			
-			lineRenderer.SetPosition(1, new Vector3((1f - v.x) - 0.5f, 1f, (1f - v.y) - 0.5f));
+			lineRenderer.SetPosition(1, new Vector3(points[point].transform.localPosition.x, 1f, points[point].transform.localPosition.z));
+			while (v.x == 0 && v.y == 0)
+			{
+				
+				ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+				canvas.Raycast(ray, out hit, 100.0f);
+				v = hit.textureCoord;
+				yield return new WaitForSeconds(0.01f);
+			}
+			if (Input.GetMouseButton(0))
+				lineRenderer.SetPosition(1, new Vector3((1f - v.x) - 0.5f, 1f, (1f - v.y) - 0.5f));
 			
 			//Debug.LogFormat("[Blank Card #{0}] {1} {2}", moduleId, v.x, v.y);
 			//Debug.LogFormat("[Blank Card #{0}] {1} ", moduleId, lineRenderer.startWidth);
@@ -129,6 +138,7 @@ public class blankCard : MonoBehaviour {
 				connectedLines.Add(connectLine[point][1]);
 				break;
 			}
+			
 			yield return new WaitForSeconds(0.01f);
 		}
 		lineRenderer.SetPosition(0, new Vector3(0f, 0f, 0f));
