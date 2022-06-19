@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using System.Linq;
 using UnityEngine;
 
 public class blankCard : MonoBehaviour {
@@ -64,6 +66,8 @@ public class blankCard : MonoBehaviour {
 		new int[]{ 1, 3 },
 		new int[]{ 2, 3 }
 	};
+	bool? solving = null;
+	int connectedPoint = -1;
 	void Start () 
 	{
 		moduleId = moduleIdCounter++;
@@ -100,9 +104,8 @@ public class blankCard : MonoBehaviour {
 		lineRenderer.startWidth = 0.01f * scalar;
 		lineRenderer.endWidth = 0.01f * scalar;
 		lineRenderer.SetPosition(0, new Vector3(points[point].transform.localPosition.x, 1f, points[point].transform.localPosition.z));
-		
-		
-		int connectedPoint = -1;
+
+		connectedPoint = -1;
 		while (Input.GetMouseButton(0))
 		{
 			
@@ -121,26 +124,34 @@ public class blankCard : MonoBehaviour {
 			}
 			if (Input.GetMouseButton(0))
 				lineRenderer.SetPosition(1, new Vector3((1f - v.x) - 0.5f, 1f, (1f - v.y) - 0.5f));
-			
+
 			//Debug.LogFormat("[Blank Card #{0}] {1} {2}", moduleId, v.x, v.y);
 			//Debug.LogFormat("[Blank Card #{0}] {1} ", moduleId, lineRenderer.startWidth);
 			if (v.x >= connectedRange[point][0][0] && v.x <= connectedRange[point][0][1] && v.y >= connectedRange[point][0][2] && v.y <= connectedRange[point][0][3] && !(connectedLines.Contains(connectLine[point][0])))
 			{
-				lines[connectLine[point][0]].transform.localPosition = new Vector3(lines[connectLine[point][0]].transform.localPosition.x, 0.55f, lines[connectLine[point][0]].transform.localPosition.z);
-				connectedPoint = connectPoint[point][0];
-				connectedLines.Add(connectLine[point][0]);
+				produceLine(point, 0);
 				break;
 			}
 			else if (v.x >= connectedRange[point][1][0] && v.x <= connectedRange[point][1][1] && v.y >= connectedRange[point][1][2] && v.y <= connectedRange[point][1][3] && !(connectedLines.Contains(connectLine[point][1])))
 			{
-				lines[connectLine[point][1]].transform.localPosition = new Vector3(lines[connectLine[point][1]].transform.localPosition.x, 0.55f, lines[connectLine[point][1]].transform.localPosition.z);
-				connectedPoint = connectPoint[point][1];
-				connectedLines.Add(connectLine[point][1]);
+				produceLine(point, 1);
 				break;
 			}
 			
 			yield return new WaitForSeconds(0.01f);
 		}
+		connect(point);
+	}
+
+	private void produceLine(int point, int ix)
+    {
+		Debug.Log(point);
+		lines[connectLine[point][ix]].transform.localPosition = new Vector3(lines[connectLine[point][ix]].transform.localPosition.x, 0.55f, lines[connectLine[point][ix]].transform.localPosition.z);
+		connectedPoint = connectPoint[point][ix];
+		connectedLines.Add(connectLine[point][ix]);
+	}
+	private void connect(int point)
+    {
 		lineRenderer.SetPosition(0, new Vector3(0f, 0f, 0f));
 		lineRenderer.SetPosition(1, new Vector3(0f, 0f, 0f));
 		points[point].OnInteractEnded();
@@ -150,7 +161,7 @@ public class blankCard : MonoBehaviour {
 			lastConnection[0] = point;
 			lastConnection[1] = connectedPoint;
 			numLineCounter++;
-			if(points[connectedPoint].OnInteract != null)
+			if (points[connectedPoint].OnInteract != null)
 				points[connectedPoint].OnInteract();
 			else
 			{
@@ -233,8 +244,9 @@ public class blankCard : MonoBehaviour {
 			cardForm.material.color = new Color(aa, aa, aa);
 			yield return new WaitForSeconds(0.01f);
 		}
+		solving = card[0] == rank && card[1] == suit;
 		yield return new WaitForSeconds(1f);
-		if (card[0] == rank && card[1] == suit)
+		if (solving.Value)
 		{
 			audio.PlaySoundAtTransform(solveSFX.name, transform);
 			module.HandlePass();
@@ -248,6 +260,7 @@ public class blankCard : MonoBehaviour {
 	}
 	private void reset()
 	{
+		solving = null;
 		foreach (int i in index)
 		{
 			points[i].OnInteract = delegate { StartCoroutine(connecting(i)); return false; };
@@ -260,5 +273,46 @@ public class blankCard : MonoBehaviour {
 		};
 		numConsecutiveLines = 0;
 		connectedLines.Clear();
+	}
+
+	private readonly string TwitchHelpMessage = @"Use [!{0} connect 1 2 4, 4 3] to connect those dots. Spaces separate dots part of the same stroke. Commas separate completed strokes. Use [!{0} clear to clear the canvas.";
+#pragma warning disable 414
+
+	IEnumerator ProcessTwitchCommand(string command)
+	{
+		command = command.Trim(' ', ',', ';').ToUpperInvariant();
+		Match m = Regex.Match(command, @"^(?:CONNECT\s*)?((?:[1-4](?:[\s,;]+|$))+)$");
+		if (command == "CLEAR")
+        {
+			yield return null;
+			clearButton.OnInteract();
+        }
+		else if (m.Success)
+		{
+			yield return null;
+			int[][] strokes = m.Groups[1].Value.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(stroke =>
+					stroke.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(pos => pos[0] - '1').ToArray()).ToArray();
+			Debug.Log(strokes.Select(x => x.Join(" ")).Join("|"));
+			foreach (int[] stroke in strokes)
+            {
+				points[stroke.First()].OnInteract();
+				connectedPoint = stroke.First();
+				foreach (int pos in stroke)
+                {
+					produceLine(connectedPoint, 0);
+					connect(connectedPoint);
+					yield return new WaitForSeconds(0.1f);
+                }
+				points[stroke.Last()].OnInteractEnded();
+            }
+			if (solving != null)
+				yield return solving.Value ? "solve" : "strike";
+		}
+
+	}
+
+	IEnumerator TwitchHandleForcedSolve()
+	{
+		yield return null;
 	}
 }
